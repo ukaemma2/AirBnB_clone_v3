@@ -6,3 +6,6 @@ from api.v1.views.states import *
 from api.v1.views.cities import *
 from api.v1.views.amenities import *
 from api.v1.views.users import *
+from api.v1.views.places.py import *
+from api.v1.views.places_reviews.py import *
+from api.v1.views.places_amenities.py import *
