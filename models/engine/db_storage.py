@@ -54,29 +54,6 @@ class DBStorage:
     def new(self, obj):
         """add the object to the current database session"""
         self.__session.add(obj)
-        
-    def get(self, cls, id):
-        """
-        fetches specific object
-        :param cls: class of object as string
-        :param id: id of object as string
-        :return: found object or None
-        """
-        all_class = self.all(cls)
-
-        for obj in all_class.values():
-            if id == str(obj.id):
-                return obj
-
-        return None
-        
-    def count(self, cls=None):
-        """
-        count of how many instances of a class
-        :param cls: class name
-        :return: count of instances of a class
-        """
-        return len(self.all(cls))
 
     def save(self):
         """commit all changes of the current database session"""
@@ -97,3 +74,22 @@ class DBStorage:
     def close(self):
         """call remove() method on the private session attribute"""
         self.__session.remove()
+
+    def get(self, cls, id):
+        """
+        Returns the object based on the class and its ID, or None if not found
+        """
+        if cls in classes.values():
+            return self.__session.query(cls).filter(cls.id == id).first()
+        return None
+
+    def count(self, cls=None):
+        """
+        Returns the number of objects in storage matching the given class.
+        Or all objects if no name is passed
+        """
+        # if variable is passed as cls
+        if cls:
+            return len(self.all(cls))
+        # if no variable is passed
+        return len(self.all())
