@@ -1,120 +1,105 @@
 #!/usr/bin/python3
-"""
-route for handling Review objects and operations
-"""
-from flask import jsonify, abort, request
-from api.v1.views import app_views, storage
+"""API endpoint for the reviews object"""
+from api.v1.views import app_views
+from flask import jsonify as jsny, make_response, abort, request as req
+from models import storage
+from models.place import Place
 from models.review import Review
+from models.user import User
 
 
-@app_views.route("/places/<place_id>/reviews", methods=["GET"],
+@app_views.route("/places/<place_id>/reviews", methods=["GET", "POST"],
                  strict_slashes=False)
-def reviews_by_place(place_id):
+def reviewAPI(place_id):
     """
-    retrieves all Review objects by place
-    :return: json of all reviews
+     - GET: Retrieves the list of all reviews if place ID is passed.
+            Or a specific object if it is passed.
+     - POST: Adds new object if a link exsists.
+             Returns error code if other
     """
-    review_list = []
-    place_obj = storage.get("Place", str(place_id))
+    fullRevw = storage.all(Review)
+    fullPlac = storage.all(Place)
 
-    if place_obj is None:
-        abort(404)
+    # Using HTTP GET
+    if req.method == "GET":
+        seek = "Place." + place_id
+        try:
+            found = fullPlac[seek]
+            data = []
+            for name in found.fullRevw:
+                entry = name.to_dict()
+                data.append(entry)
+            return jsny(data)
+        except KeyError:
+            abort(404)
 
-    for obj in place_obj.reviews:
-        review_list.append(obj.to_json())
+    # Using HTTP POST
+    elif req.method == "POST":
+        if req.is_json:
+            new = req.get_json()
+        else:
+            abort(400, "Not a JSON")
+        if "user_id" not in new:
+            abort(400, "Missing user_id")
+        elif "text" not in new:
+            abort(400, "Missing text")
+        else:
+            fullUser = storage.all(User)
+            user_id = new["user_id"]
+            foundUser = []
+            for name in fullUser.values():
+                entry = name.id
+                foundUser.append(entry)
+            if user_id not in foundUser:
+                abort(404)
+            seek = "Place." + place_id
+            if seek not in fullPlac:
+                abort(404)
+            new.update({"place_id": place_id})
+            newRev = Review(**new)
+            storage.new(newRev)
+            storage.save()
+            data = newRev.to_dict()
+            return jsny(data), 201
 
-    return jsonify(review_list)
+    else:
+        abort(501)
 
 
-@app_views.route("/places/<place_id>/reviews", methods=["POST"],
+@app_views.route('/reviews/<review_id>', methods=['GET'],
                  strict_slashes=False)
-def review_create(place_id):
-    """
-    create REview route
-    :return: newly created Review obj
-    """
-    review_json = request.get_json(silent=True)
-    if review_json is None:
-        abort(400, 'Not a JSON')
-    if not storage.get("Place", place_id):
+def getReview(review_id):
+    """get Review"""
+    review = storage.get(Review, review_id)
+    if not review:
         abort(404)
-    if not storage.get("User", review_json["user_id"]):
+    return jsny(review.to_dict())
+
+
+@app_views.route('/reviews/<review_id>',
+                 methods=['DELETE'], strict_slashes=False)
+def DeleteReview(review_id):
+    """delete Review"""
+    review = storage.get(Review, review_id)
+    if not review:
         abort(404)
-    if "user_id" not in review_json:
-        abort(400, 'Missing user_id')
-    if "text" not in review_json:
-        abort(400, 'Missing text')
-
-    review_json["place_id"] = place_id
-
-    new_review = Review(**review_json)
-    new_review.save()
-    response = jsonify(new_review.to_json())
-    response.status_code = 201
-
-    return response
-
-
-@app_views.route("/reviews/<review_id>",  methods=["GET"],
-                 strict_slashes=False)
-def review_by_id(review_id):
-    """
-    gets a specific Review object by ID
-    :param review_id: place object id
-    :return: review obj with the specified id or error
-    """
-
-    fetched_obj = storage.get("Review", str(review_id))
-
-    if fetched_obj is None:
-        abort(404)
-
-    return jsonify(fetched_obj.to_json())
-
-
-@app_views.route("/reviews/<review_id>",  methods=["PUT"],
-                 strict_slashes=False)
-def review_put(review_id):
-    """
-    updates specific Review object by ID
-    :param review_id: Review object ID
-    :return: Review object and 200 on success, or 400 or 404 on failure
-    """
-    place_json = request.get_json(silent=True)
-
-    if place_json is None:
-        abort(400, 'Not a JSON')
-
-    fetched_obj = storage.get("Review", str(review_id))
-
-    if fetched_obj is None:
-        abort(404)
-
-    for key, val in place_json.items():
-        if key not in ["id", "created_at", "updated_at", "user_id",
-                       "place_id"]:
-            setattr(fetched_obj, key, val)
-
-    fetched_obj.save()
-
-    return jsonify(fetched_obj.to_json())
-
-
-@app_views.route("/reviews/<review_id>",  methods=["DELETE"],
-                 strict_slashes=False)
-def review_delete_by_id(review_id):
-    """
-    deletes Review by id
-    :param : Review object id
-    :return: empty dict with 200 or 404 if not found
-    """
-
-    fetched_obj = storage.get("Review", str(review_id))
-
-    if fetched_obj is None:
-        abort(404)
-
-    storage.delete(fetched_obj)
+    review.delete()
     storage.save()
+    return make_response(jsny({}), 200)
 
-    return jsonify({})
+
+@app_views.route('/reviews/<review_id>',
+                 methods=['PUT'], strict_slashes=False)
+def putReview(review_id):
+    """put review"""
+    review = storage.get(Review, review_id)
+    if not review:
+        abort(404)
+    reques = req.get_json()
+    if not reques:
+        abort(400, "Not a JSON")
+    for k, value in reques.items():
+        if k not in ['id', 'user_id', 'place_id', 'created_at', 'updated_at']:
+            setattr(review, k, value)
+    storage.save()
+    return make_response(jsny(review.to_dict()), 200)
