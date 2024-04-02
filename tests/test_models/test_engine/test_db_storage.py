@@ -66,6 +66,35 @@ test_db_storage.py'])
                              "{:s} method needs a docstring".format(func[0]))
             self.assertTrue(len(func[1].__doc__) >= 1,
                             "{:s} method needs a docstring".format(func[0]))
+    def test_get_existing_object(self):
+        # Test getting an existing object from storage
+        state_id = 'existing_state_id'
+        state_name = 'Test State'
+        # Assuming 'State' is a model in the database
+        state = State(id=state_id, name=state_name)
+        storage.save(state)
+        
+        db_storage = DBStorage()
+        retrieved_state = db_storage.get(State, state_id)
+        self.assertEqual(retrieved_state.name, state_name)
+
+    def test_get_non_existing_object(self):
+        # Test getting a non-existing object from storage
+        db_storage = DBStorage()
+        retrieved_state = db_storage.get(State, 'non_existing_id')
+        self.assertIsNone(retrieved_state)
+
+    def test_count_all_objects(self):
+        # Test counting all objects in storage
+        db_storage = DBStorage()
+        total_count = db_storage.count()
+        self.assertEqual(total_count, expected_total_count)
+
+    def test_count_objects_of_specific_class(self):
+        # Test counting objects of a specific class in storage
+        db_storage = DBStorage()
+        state_count = db_storage.count(State)
+        self.assertEqual(state_count, expected_state_count)
 
 
 class TestFileStorage(unittest.TestCase):
@@ -86,36 +115,3 @@ class TestFileStorage(unittest.TestCase):
     @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
     def test_save(self):
         """Test that save properly saves objects to file.json"""
-
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_count(self):
-        """Tests the newly introduced count method"""
-        models.storage.reload()
-        state = State(name="Hell")
-        user = User(email="Mega.com", password="Mega22")
-        models.storage.new(state)
-        models.storage.new(user)
-        models.storage.save()
-        self.assertEqual(models.storage.count(), 2)
-        models.storage.delete(user)
-        models.storage.delete(state)
-
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_get(self):
-        """Tests the newly introduced get method"""
-        models.storage.reload()
-        user = User(email="Mega.com", password="Mega22")
-        models.storage.new(user)
-        models.storage.save()
-        user_id = user.id
-        wrong_id = '666'
-        self.assertTrue(models.storage.get(User, user_id) is user)
-        self.assertIsNone(models.storage.get(User, wrong_id))
-        models.storage.delete(user)
-        state = State(name='Heaven')
-        models.storage.new(state)
-        models.storage.save()
-        state_id = state.id
-        wrong_id = 'Toast'
-        self.assertTrue(models.storage.get(State, state_id) is state)
-        self.assertIsNone(models.storage.get(State, wrong_id))

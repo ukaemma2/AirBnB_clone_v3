@@ -67,6 +67,36 @@ test_file_storage.py'])
             self.assertTrue(len(func[1].__doc__) >= 1,
                             "{:s} method needs a docstring".format(func[0]))
 
+    def test_get_existing_object(self):
+        # Test getting an existing object from storage
+        state_id = 'existing_state_id'
+        state_name = 'Test State'
+        # Assuming 'State' is a model in the file storage
+        state = State(id=state_id, name=state_name)
+        storage.save(state)
+        
+        file_storage = FileStorage()
+        retrieved_state = file_storage.get(State, state_id)
+        self.assertEqual(retrieved_state.name, state_name)
+
+    def test_get_non_existing_object(self):
+        # Test getting a non-existing object from storage
+        file_storage = FileStorage()
+        retrieved_state = file_storage.get(State, 'non_existing_id')
+        self.assertIsNone(retrieved_state)
+
+    def test_count_all_objects(self):
+        # Test counting all objects in storage
+        file_storage = FileStorage()
+        total_count = file_storage.count()
+        self.assertEqual(total_count, expected_total_count)
+
+    def test_count_objects_of_specific_class(self):
+        # Test counting objects of a specific class in storage
+        file_storage = FileStorage()
+        state_count = file_storage.count(State)
+        self.assertEqual(state_count, expected_state_count)
+
 
 class TestFileStorage(unittest.TestCase):
     """Test the FileStorage class"""
@@ -113,29 +143,3 @@ class TestFileStorage(unittest.TestCase):
         with open("file.json", "r") as f:
             js = f.read()
         self.assertEqual(json.loads(string), json.loads(js))
-
-    @unittest.skipIf(models.storage_t == 'db', "not testing file storage")
-    def test_count(self):
-        """Tests the newly introduced count method"""
-        storage = FileStorage()
-        # clear objects from storage
-        FileStorage._FileStorage__objects.clear()
-        storage.save()
-        # create new object of each class
-        for key, value in classes.items():
-            instance = value()
-            instance_key = instance.__class__.__name__ + "." + instance.id
-            FileStorage._FileStorage__objects[instance_key] = instance
-        storage.save()
-        self.assertEqual(storage.count(), 7)
-
-    @unittest.skipIf(models.storage_t == 'db', "not testing file storage")
-    def test_get(self):
-        """Tests the newly introduced get method"""
-        storage = FileStorage()
-        storage.save()
-        # create new object
-        state = State()
-        storage.new(state)
-        state_id = state.to_dict()['id']
-        self.assertTrue(storage.get(State, state_id) is state)

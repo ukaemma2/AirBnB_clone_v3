@@ -1,73 +1,80 @@
 #!/usr/bin/python3
-"""The link between Place API and the Amenity API"""
+"""
+Module Docs
+"""
 from api.v1.views import app_views
-from flask import jsonify as jsny, abort, request as req
-from models import storage
+from flask import jsonify, abort
+from flasgger.utils import swag_from
+from models import storage, storage_t
 from models.place import Place
 from models.amenity import Amenity
-from os import getenv
+
 
 
 @app_views.route("/places/<place_id>/amenities", methods=["GET"],
                  strict_slashes=False)
-@app_views.route("places/<place_id>/amenities/<amenity_id>",
-                 methods=["GET", "DELETE", "POST"],
-                 strict_slashes=False)
-def link(place_id=None, amenity_id=None):
+@swag_from('documentation/place_amenity/get_places_amenities.yml',
+           methods=['GET'])
+def amenities_from_place(place_id):
     """
-     - GET: Retrieves the list of all Amenity if place ID is passed.
-            Or a specific object if it is passed.
-     - DELETE: Remove an object. Or returns error code if other.
-     - POST: Adds new object if a link exsists.
-             Returns error code if other
+    Function Docs
     """
-    editType = getenv('HBNB_TYPE_STORAGE')
-    # Using HTTP GET
-    if req.method == "GET":
-        # Select the correct place
-        seek = storage.get(Place, place_id)
-        if not seek:
-            # No such place
-            abort(404)
-        data = []
-        for name in seek.amenities:
-            entry = name.to_dict()
-            data.append(entry)
-        return jsny(data)
-
-    # Using HTTP DELETE
-    elif req.method == "DELETE":
-        # Pulling objects
-        seekPlac = storage.get(Place, place_id)
-        seekAmen = storage.get(Amenity, amenity_id)
-        # One of them is not found
-        if not seekPlac or not seekPlac:
-            abort(404)
-        if editType == "db":
-            storage.delete(seekAmen)
-        seekPlac.amenity_id.remove('Amenity.' + amenity_id)
-        storage.save()
-        emptData = {}
-        return jsny(emptData), 200
-
-    # Using HTTP POST
-    elif req.method == "POST":
-        # Pulling objects
-        seekPlac = storage.get(Place, place_id)
-        seekAmen = storage.get(Amenity, amenity_id)
-        # One of them is not found
-        if not seekPlac or not seekPlac:
-            abort(404)
-        if seekAmen in seekPlac.amenities:
-            data = seekAmen.to_dict()
-            return jsonify(data), 200
-        if editType != 'db':
-            seekPlac.amenity_ids.append('Amenity.' + amenity_id)
-        else:
-            seekPlac.amenities.append(amenity)
-        storage.save()
-        data = seekAmen.to_dict()
-        return jsny(data), 201
-
+    place = storage.get(Place, place_id)
+    if place is None:
+        abort(404)
+    if storage_t == "db":
+        return jsonify([amenity.to_dict() for amenity in place.amenities])
     else:
-        abort(501)
+        return jsonify([
+            storage.get(Amenity, _id).to_dict() for _id in place.amenity_ids
+        ])
+
+
+@app_views.route("/places/<place_id>/amenities/<amenity_id>",
+                 methods=["DELETE"], strict_slashes=False)
+@swag_from('documentation/place_amenity/delete_place_amenities.yml',
+           methods=['DELETE'])
+def delete_amenity_from_place(place_id, amenity_id):
+    """
+    Function Docs
+    """
+    place = storage.get(Place, place_id)
+    amenity = storage.get(Amenity, amenity_id)
+    if place is None or amenity is None:
+        abort(404)
+    if storage_t == "db":
+        if amenity not in place.amenities:
+            abort(404)
+    else:
+        if amenity.id not in place.amenity_id:
+            abort(404)
+    amenity.delete()
+    storage.save()
+
+    return jsonify({})
+
+
+@app_views.route("places/<place_id>/amenities/<amenity_id>", methods=["POST"],
+                 strict_slashes=False)
+@swag_from('documentation/place_amenity/post_place_amenities.yml',
+           methods=['POST'])
+def insert_amenity_in_place(place_id, amenity_id):
+    """
+    Function Docs
+    """
+    place = storage.get(Place, place_id)
+    amenity = storage.get(Amenity, amenity_id)
+    if place is None or amenity is None:
+        abort(404)
+    if storage_t == "db":
+        if amenity in place.amenities:
+            return jsonify(amenity.to_dict())
+        else:
+            place.amenities.append(amenity)
+    else:
+        if amenity.id in place.amenity_id:
+            return jsonify(amenity.to_dict())
+        else:
+            place.amenity_id.append(amenity.id)
+    storage.save()
+    return jsonify(amenity.to_dict()), 201
